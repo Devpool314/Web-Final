@@ -801,7 +801,19 @@ if (!isset($_SESSION['user']['is_verified'])) {
       unlockBtn.onclick = () => {
         if (btoa(pwdInput.value) === note.password) {
           note._unlocked = true;
+          if (!isSharedNote) {
+            notes[index]._unlocked = true;
+            saveNotes();
+          } else {
+            let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
+            const myIdx = myNotes.findIndex(n => n.id === note.id);
+            if (myIdx !== -1) {
+              myNotes[myIdx]._unlocked = true;
+              localStorage.setItem(notesKey, JSON.stringify(myNotes));
+            }
+          }
           renderNotes();
+          
         } else {
           alert('Mật khẩu không đúng!');
           pwdInput.value = '';
@@ -944,7 +956,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
   // Password protection
   const lockAction = document.createElement('button');
   lockAction.className = 'menu-action';
-  lockAction.textContent = note.locked ? 'Đổi mật khẩu' : 'Đặt mật khẩu';
+  lockAction.textContent = note.locked ? 'Đổi mật khẩu' : 'Khóa ghi chú';
   lockAction.onclick = () => {
     let pwd = prompt(note.locked ? 'Nhập mật khẩu mới cho ghi chú này:' : 'Đặt mật khẩu cho ghi chú này:');
     if (pwd && pwd.length >= 3) {
@@ -1197,8 +1209,9 @@ if (!isset($_SESSION['user']['is_verified'])) {
   sharedNotes.forEach(n => {
     if (!allNotesMap[n.id]) allNotesMap[n.id] = n;
   });
-  const allNotes = Object.values(allNotesMap);
+  let allNotes = Object.values(allNotesMap);
 
+  // Lọc theo tag, search, quyền sở hữu hoặc được chia sẻ
   const filtered = allNotes.filter(n => {
     const isOwner = n.owner === userEmail;
     const isShared = (n.shared || []).some(s => s.email === userEmail);
@@ -1207,7 +1220,16 @@ if (!isset($_SESSION['user']['is_verified'])) {
     return (isOwner || isShared) && matchesTag && matchesSearch;
   });
 
-  [...filtered].forEach(note => {
+  // Chia thành 3 nhóm: pinned, others, locked (locked luôn ở cuối)
+  const locked = filtered.filter(n => n.locked && !n._unlocked)
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const pinned = filtered.filter(n => n.pinned && !(n.locked && !n._unlocked))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+  const others = filtered.filter(n => !n.pinned && !(n.locked && !n._unlocked))
+    .sort((a, b) => b.updatedAt - a.updatedAt);
+
+  // Render: pinned trước, others sau, locked cuối cùng
+  [...pinned, ...others, ...locked].forEach(note => {
     let index, isSharedNote;
     if (notes.some(n => n.id === note.id)) {
       index = notes.findIndex(n => n.id === note.id);
