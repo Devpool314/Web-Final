@@ -580,39 +580,42 @@ if (!isset($_SESSION['user']['is_verified'])) {
         if (note.shared && note.shared.length > 0) syncSharedNote(note);
       });
     }
-    function deleteNote(index) {
-      const note = notes[index];
-      // Nếu là người nhận ghi chú chia sẻ
-      if (note.owner !== userEmail) {
-        // Xóa khỏi notes của mình
-        notes.splice(index, 1);
-        saveNotes();
-        renderNotes();
-        // Xóa mình khỏi danh sách chia sẻ của chủ sở hữu
-        const ownerKey = 'notes_' + note.owner;
-        let ownerNotes = JSON.parse(localStorage.getItem(ownerKey)) || [];
-        const ownerNoteIdx = ownerNotes.findIndex(n => n.id === note.id);
-        if (ownerNoteIdx !== -1 && ownerNotes[ownerNoteIdx].shared) {
-          ownerNotes[ownerNoteIdx].shared = ownerNotes[ownerNoteIdx].shared.filter(s => s.email !== userEmail);
-          localStorage.setItem(ownerKey, JSON.stringify(ownerNotes));
-        }
-        return;
-      }
-      // Nếu là chủ sở hữu
-      if (note.shared && note.shared.length > 0) {
-        note.shared.forEach(item => {
-          // Lấy avatar mới nhất từ localStorage nếu có
-          const latestAvatar = localStorage.getItem('user_avatar_' + item.email);
-          const avatar = latestAvatar && latestAvatar !== ''
-            ? latestAvatar
-            : `https://ui-avatars.com/api/?name=${encodeURIComponent(item.email)}&size=24`;
-          shareInfoDiv.innerHTML += `<img src="${avatar}" title="${item.email}" style="width:24px;height:24px;border-radius:50%;">`;
-        });
-      }
-      notes.splice(index, 1);
-      saveNotes();
-      renderNotes();
+    function deleteNote(index, isSharedNote) {
+  if (isSharedNote) {
+    // Lấy note từ sharedNotes để lấy id
+    const sharedNotes = getAllSharedNotes();
+    const note = sharedNotes[index];
+    // Xóa khỏi notes của mình (người nhận) theo id
+    let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
+    myNotes = myNotes.filter(n => n.id !== note.id);
+    localStorage.setItem(notesKey, JSON.stringify(myNotes));
+
+    // Thu hồi quyền chia sẻ ở phía chủ sở hữu
+    const ownerKey = 'notes_' + note.owner;
+    let ownerNotes = JSON.parse(localStorage.getItem(ownerKey)) || [];
+    const ownerNoteIdx = ownerNotes.findIndex(n => n.id === note.id);
+    if (ownerNoteIdx !== -1 && ownerNotes[ownerNoteIdx].shared) {
+      ownerNotes[ownerNoteIdx].shared = ownerNotes[ownerNoteIdx].shared.filter(s => s.email !== userEmail);
+      localStorage.setItem(ownerKey, JSON.stringify(ownerNotes));
     }
+    renderNotes();
+    return;
+  }
+
+  // Nếu là chủ sở hữu
+  const note = notes[index];
+  if (note.shared && note.shared.length > 0) {
+    note.shared.forEach(item => {
+      const receiverKey = 'notes_' + item.email;
+      let receiverNotes = JSON.parse(localStorage.getItem(receiverKey)) || [];
+      receiverNotes = receiverNotes.filter(n => n.id !== note.id);
+      localStorage.setItem(receiverKey, JSON.stringify(receiverNotes));
+    });
+  }
+  notes.splice(index, 1);
+  saveNotes();
+  renderNotes();
+}
     function saveLabels() {
       localStorage.setItem(labelsKey, JSON.stringify(labels));
     }
@@ -741,7 +744,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
       }
     };
 
-    function createNoteElement(note, index) {
+    function createNoteElement(note, index, isSharedNote) {
 
       const isOwner = note.owner === userEmail;
       const sharedItem = (note.shared || []).find(s => s.email === userEmail);
@@ -1074,9 +1077,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
       return;
     }
     if (confirm('Bạn có chắc chắn muốn xóa ghi chú này không?')) {
-      notes.splice(index, 1);
-      saveNotes();
-      renderNotes();
+      deleteNote(index, isSharedNote);
     }
     menuDropdown.style.display = 'none';
   };
@@ -1151,11 +1152,18 @@ if (!isset($_SESSION['user']['is_verified'])) {
       delBtn.style.padding = '2px 6px';
       delBtn.onclick = (e) => {
         e.stopPropagation();
-        notes[index].images.splice(imgIdx, 1);
-        notes[index].updatedAt = Date.now();
-        saveNotes();
-        if (!isOwner && sharedItem && sharedItem.permission === 'edit') {
-          syncBackToOwner(notes[index]);
+        if (!isSharedNote) {
+          notes[index].images.splice(imgIdx, 1);
+          notes[index].updatedAt = Date.now();
+          saveNotes();
+        } else {
+          let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
+          const myIdx = myNotes.findIndex(n => n.id === note.id);
+          if (myIdx !== -1) {
+            myNotes[myIdx].images.splice(imgIdx, 1);
+            myNotes[myIdx].updatedAt = Date.now();
+            localStorage.setItem(notesKey, JSON.stringify(myNotes));
+          }
         }
         renderNotes();
       };
@@ -1179,32 +1187,39 @@ if (!isset($_SESSION['user']['is_verified'])) {
       return div;
     }
       function renderNotes() {
-        notes = JSON.parse(localStorage.getItem(notesKey)) || [];
-        noteContainer.innerHTML = '';
-        const sharedNotes = getAllSharedNotes();
-        const allNotes = [...notes, ...sharedNotes];
+  notes = JSON.parse(localStorage.getItem(notesKey)) || [];
+  noteContainer.innerHTML = '';
+  const sharedNotes = getAllSharedNotes();
 
-        const filtered = notes.filter(n => {
-          const isOwner = n.owner === userEmail;
-          const isShared = (n.shared || []).some(s => s.email === userEmail);
-          const matchesTag = currentTag ? (n.tags || []).includes(currentTag) : true;
-          const matchesSearch = searchQuery ? (n.title.toLowerCase().includes(searchQuery) || n.content.toLowerCase().includes(searchQuery)) : true;
-          return (isOwner || isShared) && matchesTag && matchesSearch;
-        });
-        // Separate locked (not unlocked) notes
-        const locked = filtered.filter(n => n.locked && !n._unlocked)
-          .sort((a, b) => b.updatedAt - a.updatedAt);
-        const pinned = filtered.filter(n => n.pinned && !(n.locked && !n._unlocked))
-          .sort((a, b) => b.updatedAt - a.updatedAt);
-        const others = filtered.filter(n => !n.pinned && !(n.locked && !n._unlocked))
-          .sort((a, b) => b.updatedAt - a.updatedAt);
+  // Loại bỏ trùng lặp theo id (ưu tiên notes của mình)
+  const allNotesMap = {};
+  notes.forEach(n => allNotesMap[n.id] = n);
+  sharedNotes.forEach(n => {
+    if (!allNotesMap[n.id]) allNotesMap[n.id] = n;
+  });
+  const allNotes = Object.values(allNotesMap);
 
-        // Render pinned, then others, then locked
-        [...pinned, ...others, ...locked].forEach((note, index) => {
-          const noteEl = createNoteElement(note, notes.indexOf(note));
-          noteContainer.appendChild(noteEl);
-        });
-      }
+  const filtered = allNotes.filter(n => {
+    const isOwner = n.owner === userEmail;
+    const isShared = (n.shared || []).some(s => s.email === userEmail);
+    const matchesTag = currentTag ? (n.tags || []).includes(currentTag) : true;
+    const matchesSearch = searchQuery ? (n.title.toLowerCase().includes(searchQuery) || n.content.toLowerCase().includes(searchQuery)) : true;
+    return (isOwner || isShared) && matchesTag && matchesSearch;
+  });
+
+  [...filtered].forEach(note => {
+    let index, isSharedNote;
+    if (notes.some(n => n.id === note.id)) {
+      index = notes.findIndex(n => n.id === note.id);
+      isSharedNote = false;
+    } else {
+      index = sharedNotes.findIndex(n => n.id === note.id);
+      isSharedNote = true;
+    }
+    const noteEl = createNoteElement(note, index, isSharedNote);
+    noteContainer.appendChild(noteEl);
+  });
+}
       function syncSharedNote(note) {
         (note.shared || []).forEach(item => {
           const receiverKey = 'notes_' + item.email;
@@ -1284,17 +1299,6 @@ if (!isset($_SESSION['user']['is_verified'])) {
         renderSharedList(note);
         renderNotes();
         document.getElementById('shareEmailInput').value = '';
-
-        // --- Thêm vào notes của người nhận ---
-        const receiverKey = 'notes_' + email;
-        let receiverNotes = JSON.parse(localStorage.getItem(receiverKey)) || [];
-        // Nếu chưa có note này (theo id), thì thêm vào
-        if (!receiverNotes.some(n => n.id === note.id)) {
-          // Copy note, chỉ giữ các trường cần thiết
-          const sharedNote = JSON.parse(JSON.stringify(note));
-          receiverNotes.push(sharedNote);
-          localStorage.setItem(receiverKey, JSON.stringify(receiverNotes));
-        }
 
         // --- Đồng bộ nhãn cho người nhận ---
         const receiverLabelsKey = 'labels_' + email;
