@@ -380,13 +380,31 @@ if (!isset($_SESSION['user']['is_verified'])) {
 
     /* xử lí nhãn */
     .note-menu-btn {
-      background: none;
+      background: #f8f9fa;
       border: none;
-      font-size: 1.3rem;
       color: #888;
+      font-size: 1em;
+      border-radius: 50%;
+      width: 42px;
+      height: 42px;
+      min-width: 28px;
+      min-height: 28px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background 0.15s, color 0.15s;
       cursor: pointer;
-      float: right;
-      margin-left: 8px;
+      margin-left: 0;
+      margin-right: 0;
+      box-shadow: 0 1px 4px rgba(60,64,67,.08);
+      padding: 0;
+    }
+    .note-menu-btn:hover, .note-menu-btn:focus {
+      background: #ececec;
+      color: #222;
+    }
+    .note-menu-btn i {
+      font-size: 1em;
     }
     .note-menu-dropdown {
       position: absolute;
@@ -527,7 +545,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
   background: #f8f9fa;
   border: none;
   color: #222;
-  font-size: 1.3em;
+  font-size: 0.9em;
   border-radius: 50%;
   width: 42px;
   height: 42px;
@@ -542,7 +560,14 @@ if (!isset($_SESSION['user']['is_verified'])) {
   background: #ececec;
 }
 
-</style>
+/* Áp dụng style cho contentInput */
+.contentInput {
+  font-size: 16px;
+  font-weight: normal;
+  font-style: normal;
+  text-decoration: none;
+}
+  </style>
 </head>
 <body>
   
@@ -818,9 +843,13 @@ if (!isset($_SESSION['user']['is_verified'])) {
       div.className = 'note-item fade-in';
       div.style.transitionDelay = (index * 30) + 'ms';
 
+      // Tạo card với class Keep-style
       const card = document.createElement('div');
-      card.className = 'note-card';
+      card.className = 'note-card keep-style';
       card.style.position = 'relative';
+      card.style.background = note.color || '#fff';
+      card.style.fontSize = note.fontSize || '16px';
+      
 
       // Thêm màu nền và font chữ
       card.style.background = note.color || '#fff';
@@ -829,6 +858,8 @@ if (!isset($_SESSION['user']['is_verified'])) {
       card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.10)';
       card.style.padding = '18px 18px 12px 18px';
       card.style.transition = 'box-shadow 0.22s cubic-bezier(.4,0,.2,1), transform 0.2s cubic-bezier(.4,0,.2,1)';
+
+
 
       
 
@@ -930,68 +961,226 @@ if (!isset($_SESSION['user']['is_verified'])) {
   titleInput.style.backgroundColor = canEdit ? "" : "#f5f5f5";
   contentInput.style.backgroundColor = canEdit ? "" : "#f5f5f5";
 
-  // === Tạo toolbar chứa 2 nút dưới vùng nhập nội dung ===
+  // === Tạo toolbar chứa các nút ===
 const noteToolbar = document.createElement('div');
 noteToolbar.className = 'note-toolbar mt-2 mb-2 d-flex align-items-center gap-2';
 
-
-// Nút đổi màu
+// ==== Nút đổi màu nền ====
 const colorBtn = document.createElement('button');
 colorBtn.type = 'button';
 colorBtn.className = 'note-toolbar-btn';
-colorBtn.title = 'Đổi màu ghi chú';
+colorBtn.title = 'Đổi màu nền';
 colorBtn.innerHTML = '<i class="fas fa-palette"></i>';
-colorBtn.onclick = (e) => {
-  e.stopPropagation();
-  const color = prompt('Nhập mã màu hoặc chọn màu:', note.color || '#fff');
-  if (color) {
-    note.color = color;
-    if (!isSharedNote) {
-      notes[index].color = color;
-      saveNotes();
-    } else {
-      let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
-      const myIdx = myNotes.findIndex(n => n.id === note.id);
-      if (myIdx !== -1) {
-        myNotes[myIdx].color = color;
-        localStorage.setItem(notesKey, JSON.stringify(myNotes));
-      }
-    }
-    renderNotes();
-  }
-};
 noteToolbar.appendChild(colorBtn);
 
-// Nút đổi cỡ chữ
-const fontSizeBtn = document.createElement('button');
-fontSizeBtn.type = 'button';
-fontSizeBtn.className = 'note-toolbar-btn';
-fontSizeBtn.title = 'Đổi cỡ chữ';
-fontSizeBtn.innerHTML = '<i class="fas fa-text-height"></i>';
-fontSizeBtn.onclick = (e) => {
-  e.stopPropagation();
-  const size = prompt('Nhập cỡ chữ (vd: 14px, 18px, 24px):', note.fontSize || '16px');
-  if (size) {
-    note.fontSize = size;
+// Bảng chọn màu nền
+const colorPalette = document.createElement('div');
+colorPalette.style.position = 'absolute';
+colorPalette.style.bottom = '50px';
+colorPalette.style.left = '10px';
+colorPalette.style.background = '#fff';
+colorPalette.style.border = '1px solid #eee';
+colorPalette.style.borderRadius = '12px';
+colorPalette.style.boxShadow = '0 2px 8px rgba(0,0,0,0.12)';
+colorPalette.style.padding = '10px 12px 6px 12px';
+colorPalette.style.display = 'none';
+colorPalette.style.zIndex = 1000;
+colorPalette.style.minWidth = '220px';
+
+// Các màu nền (giống Google Keep)
+const colors = [
+  { color: "#fff", label: "Mặc định" },
+  { color: "#f28b82" }, { color: "#fbbc04" }, { color: "#fff475" },
+  { color: "#ccff90" }, { color: "#a7ffeb" }, { color: "#cbf0f8" },
+  { color: "#aecbfa" }, { color: "#d7aefb" }, { color: "#fdcfe8" },
+  { color: "#e6c9a8" }, { color: "#e8eaed" }
+];
+const colorRow = document.createElement('div');
+colorRow.style.display = 'flex';
+colorRow.style.gap = '10px';
+colors.forEach(cObj => {
+  const colorCircle = document.createElement('div');
+  colorCircle.style.width = '32px';
+  colorCircle.style.height = '32px';
+  colorCircle.style.borderRadius = '50%';
+  colorCircle.style.background = cObj.color;
+  colorCircle.style.border = '2px solid #fff';
+  colorCircle.style.boxShadow = '0 1px 4px rgba(0,0,0,0.07)';
+  colorCircle.style.cursor = 'pointer';
+  if (cObj.label) {
+    colorCircle.title = cObj.label;
+    // Thêm icon hoặc border cho màu mặc định nếu muốn
+    colorCircle.style.border = '2px solid #bbb';
+    colorCircle.innerHTML = '<i class="fas fa-ban" style="color:#bbb;position:absolute;left:8px;top:8px;font-size:16px;"></i>';
+    colorCircle.style.position = 'relative';
+  }
+  colorCircle.onclick = (e) => {
+    e.stopPropagation();
+    note.color = cObj.color;
     if (!isSharedNote) {
-      notes[index].fontSize = size;
+      notes[index].color = cObj.color;
       saveNotes();
     } else {
       let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
       const myIdx = myNotes.findIndex(n => n.id === note.id);
       if (myIdx !== -1) {
-        myNotes[myIdx].fontSize = size;
+        myNotes[myIdx].color = cObj.color;
         localStorage.setItem(notesKey, JSON.stringify(myNotes));
       }
     }
+    colorPalette.style.display = 'none';
     renderNotes();
-  }
+  };
+  colorRow.appendChild(colorCircle);
+});
+colorPalette.appendChild(colorRow);
+
+noteToolbar.appendChild(colorPalette);
+
+colorBtn.onclick = (e) => {
+  e.stopPropagation();
+  colorPalette.style.display = colorPalette.style.display === 'none' ? 'block' : 'none';
 };
-noteToolbar.appendChild(fontSizeBtn);
-  
-  
-  
-  //Update note
+// Ẩn bảng màu khi click ngoài
+document.addEventListener('click', function hideColorPalette(e) {
+  if (!colorPalette.contains(e.target) && e.target !== colorBtn) {
+    colorPalette.style.display = 'none';
+  }
+});
+
+// ==== Nút chỉnh cỡ/ký tự ====
+const fontBtn = document.createElement('button');
+fontBtn.type = 'button';
+fontBtn.className = 'note-toolbar-btn';
+fontBtn.title = 'Định dạng chữ';
+fontBtn.innerHTML = '<i class="fas fa-text-height"></i>';
+noteToolbar.appendChild(fontBtn);
+
+// Popup chọn cỡ và kiểu chữ
+const fontPopup = document.createElement('div');
+fontPopup.style.position = 'absolute';
+fontPopup.style.bottom = '50px';
+fontPopup.style.left = '60px';
+fontPopup.style.background = '#fff';
+fontPopup.style.border = '1px solid #eee';
+fontPopup.style.borderRadius = '12px';
+fontPopup.style.boxShadow = '0 2px 8px rgba(0,0,0,0.12)';
+fontPopup.style.padding = '10px 12px 6px 12px';
+fontPopup.style.display = 'none';
+fontPopup.style.zIndex = 1000;
+fontPopup.style.minWidth = '180px';
+
+// Cỡ chữ
+const sizeLabel = document.createElement('div');
+sizeLabel.textContent = 'Cỡ chữ:';
+sizeLabel.style.fontWeight = 'bold';
+sizeLabel.style.marginBottom = '6px';
+fontPopup.appendChild(sizeLabel);
+
+const sizes = [
+  {label: 'Nhỏ', value: '14px'},
+  {label: 'Vừa', value: '16px'},
+  {label: 'Lớn', value: '20px'}
+];
+const sizeRow = document.createElement('div');
+sizeRow.style.display = 'flex';
+sizeRow.style.gap = '10px';
+sizes.forEach(s => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.textContent = s.label;
+  btn.style.fontSize = s.value;
+  btn.style.padding = '4px 12px';
+  btn.style.borderRadius = '8px';
+  btn.style.border = '1px solid #eee';
+  btn.style.background = note.fontSize === s.value ? '#e3f2fd' : '#fff';
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    note.fontSize = s.value;
+    if (!isSharedNote) {
+      notes[index].fontSize = s.value;
+      saveNotes();
+    } else {
+      let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
+      const myIdx = myNotes.findIndex(n => n.id === note.id);
+      if (myIdx !== -1) {
+        myNotes[myIdx].fontSize = s.value;
+        localStorage.setItem(notesKey, JSON.stringify(myNotes));
+      }
+    }
+    fontPopup.style.display = 'none';
+    renderNotes();
+  };
+  sizeRow.appendChild(btn);
+});
+fontPopup.appendChild(sizeRow);
+
+// Kiểu chữ: Bold, Italic, Underline
+const styleLabel = document.createElement('div');
+styleLabel.textContent = 'Kiểu chữ:';
+styleLabel.style.fontWeight = 'bold';
+styleLabel.style.margin = '10px 0 6px 0';
+fontPopup.appendChild(styleLabel);
+
+const styleRow = document.createElement('div');
+styleRow.style.display = 'flex';
+styleRow.style.gap = '10px';
+
+const styleBtns = [
+  {icon: '<b>B</b>', style: 'bold', title: 'Tô đậm'},
+  {icon: '<i>I</i>', style: 'italic', title: 'In nghiêng'},
+  {icon: '<u>U</u>', style: 'underline', title: 'Gạch dưới'}
+];
+styleBtns.forEach(s => {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.innerHTML = s.icon;
+  btn.title = s.title;
+  btn.style.fontSize = '1.1em';
+  btn.style.padding = '4px 10px';
+  btn.style.borderRadius = '8px';
+  btn.style.border = '1px solid #eee';
+  btn.style.background = note[s.style] ? '#e3f2fd' : '#fff';
+  btn.onclick = (e) => {
+    e.stopPropagation();
+    note[s.style] = !note[s.style];
+    if (!isSharedNote) {
+      notes[index][s.style] = note[s.style];
+      saveNotes();
+    } else {
+      let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
+      const myIdx = myNotes.findIndex(n => n.id === note.id);
+      if (myIdx !== -1) {
+        myNotes[myIdx][s.style] = note[s.style];
+        localStorage.setItem(notesKey, JSON.stringify(myNotes));
+      }
+    }
+    fontPopup.style.display = 'none';
+    renderNotes();
+  };
+  styleRow.appendChild(btn);
+});
+fontPopup.appendChild(styleRow);
+noteToolbar.appendChild(fontPopup);
+
+fontBtn.onclick = (e) => {
+  e.stopPropagation();
+  fontPopup.style.display = fontPopup.style.display === 'none' ? 'block' : 'none';
+};
+// Ẩn popup khi click ngoài
+document.addEventListener('click', function hideFontPopup(e) {
+  if (!fontPopup.contains(e.target) && e.target !== fontBtn) {
+    fontPopup.style.display = 'none';
+  }
+});
+
+    // Update note
+  // Áp dụng style cho contentInput
+  contentInput.style.fontSize = note.fontSize || '16px';
+  contentInput.style.fontWeight = note.bold ? 'bold' : 'normal';
+  contentInput.style.fontStyle = note.italic ? 'italic' : 'normal';
+  contentInput.style.textDecoration = note.underline ? 'underline' : 'none';
+
   // Sự kiện cho tiêu đề
     function saveTitle() {
       if (!canEdit) return;
@@ -1324,9 +1513,13 @@ noteToolbar.appendChild(fontSizeBtn);
       card.appendChild(labelList);
       card.appendChild(contentInput);
       card.appendChild(noteToolbar);
+
       card.appendChild(imagePreview);
       card.appendChild(updatedAtDiv);
       card.appendChild(shareInfoDiv);
+
+      noteToolbar.appendChild(menuBtn);
+      noteToolbar.appendChild(menuDropdown);
 
       div.appendChild(card);
       return div;
@@ -1558,6 +1751,27 @@ noteToolbar.appendChild(fontSizeBtn);
           renderLabels();
         }
       });
+      gridBtn.addEventListener('click', () => {
+  noteContainer.classList.add('switching');
+  setTimeout(() => {
+    noteContainer.classList.add('grid-view');
+    noteContainer.classList.remove('list-view');
+    gridBtn.classList.add('active');
+    listBtn.classList.remove('active');
+    noteContainer.classList.remove('switching');
+  }, 180);
+});
+
+listBtn.addEventListener('click', () => {
+  noteContainer.classList.add('switching');
+  setTimeout(() => {
+    noteContainer.classList.add('list-view');
+    noteContainer.classList.remove('grid-view');
+    listBtn.classList.add('active');
+    gridBtn.classList.remove('active');
+    noteContainer.classList.remove('switching');
+  }, 180);
+});
 
       renderLabels();
       renderNotes();
@@ -1646,6 +1860,36 @@ noteToolbar.appendChild(fontSizeBtn);
   font-size: 0.95em;
   border-radius: 20px;
 }
+.keep-popup {
+  animation: fadeInUp 0.2s;
+}
+.note-container .note-item {
+  transition:
+    width 0.35s cubic-bezier(.4,0,.2,1),
+    transform 0.35s cubic-bezier(.4,0,.2,1),
+    opacity 0.25s cubic-bezier(.4,0,.2,1),
+    box-shadow 0.22s cubic-bezier(.4,0,.2,1);
+  will-change: width, transform, opacity;
+}
+
+.note-container {
+  transition: opacity 0.25s cubic-bezier(.4,0,.2,1);
+}
+.note-container.switching {
+  opacity: 0.3;
+  pointer-events: none;
+}
+.note-card,
+.note-toolbar {
+  overflow: visible !important;
+  position: relative;
+}
+.note-toolbar > div,
+.note-toolbar > .note-menu-dropdown {
+  z-index: 1001;
+}
+
+
 </style>
 
 <footer class="footer mt-5 py-3 bg-light border-top shadow-sm">
