@@ -194,18 +194,17 @@ if (!isset($_SESSION['user']['is_verified'])) {
     }
 
     .note-card {
-      border: 1px solid var(--border-color);
-      border-radius: 10px;
-      padding: 15px;
+      border: none;
+      border-radius: 12px;
       background-color: var(--card-color);
-      color: var(--text-color);
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
-      transition: transform 0.3s, box-shadow 0.3s;
+      box-shadow: 0 1px 5px rgba(0,0,0,0.1);
+      padding: 12px 16px;
+      transition: box-shadow 0.22s cubic-bezier(.4,0,.2,1), transform 0.18s cubic-bezier(.4,0,.2,1);
     }
 
     .note-card:hover {
-      transform: scale(1.02);
-      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+      box-shadow: 0 8px 24px rgba(60,64,67,.18);
+      transform: translateY(-2px) scale(1.01);
     }
 
     /* Animations */
@@ -358,7 +357,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
       background-color: var(--card-color);
       box-shadow: 0 1px 5px rgba(0,0,0,0.1);
       padding: 12px 16px;
-      transition: box-shadow 0.2s ease, transform 0.2s ease;
+      transition: box-shadow 0.22s cubic-bezier(.4,0,.2,1), transform 0.18s cubic-bezier(.4,0,.2,1);
     }
     .label-item .btn { transition: opacity 0.2s; }
         .label-item span:last-child { opacity: 0; pointer-events: none; }
@@ -498,7 +497,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
   padding: 18px 18px 12px 18px !important;
   min-height: 180px;
   margin-bottom: 16px;
-  transition: background 0.2s;
+  transition: box-shadow 0.22s cubic-bezier(.4,0,.2,1), transform 0.18s cubic-bezier(.4,0,.2,1) !important;
 }
 .note-card input, .note-card textarea {
   background: transparent !important;
@@ -630,39 +629,54 @@ if (!isset($_SESSION['user']['is_verified'])) {
         if (note.shared && note.shared.length > 0) syncSharedNote(note);
       });
     }
-    function deleteNote(index, isSharedNote) {
+    function deleteNote(noteId, isSharedNote) {
   if (isSharedNote) {
     // Lấy note từ sharedNotes để lấy id
-    const sharedNotes = getAllSharedNotes();
-    const note = sharedNotes[index];
-    // Xóa khỏi notes của mình (người nhận) theo id
     let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
-    myNotes = myNotes.filter(n => n.id !== note.id);
+    myNotes = myNotes.filter(n => n.id !== noteId);
     localStorage.setItem(notesKey, JSON.stringify(myNotes));
 
-    // Thu hồi quyền chia sẻ ở phía chủ sở hữu
-    const ownerKey = 'notes_' + note.owner;
-    let ownerNotes = JSON.parse(localStorage.getItem(ownerKey)) || [];
-    const ownerNoteIdx = ownerNotes.findIndex(n => n.id === note.id);
-    if (ownerNoteIdx !== -1 && ownerNotes[ownerNoteIdx].shared) {
-      ownerNotes[ownerNoteIdx].shared = ownerNotes[ownerNoteIdx].shared.filter(s => s.email !== userEmail);
-      localStorage.setItem(ownerKey, JSON.stringify(ownerNotes));
+    // Tìm chủ sở hữu của note này
+    let owner = null;
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key.startsWith('notes_') && key !== notesKey) {
+        const userNotes = JSON.parse(localStorage.getItem(key)) || [];
+        const found = userNotes.find(n => n.id === noteId);
+        if (found) {
+          owner = found.owner;
+          break;
+        }
+      }
     }
+    if (owner) {
+      const ownerKey = 'notes_' + owner;
+      let ownerNotes = JSON.parse(localStorage.getItem(ownerKey)) || [];
+      const ownerNoteIdx = ownerNotes.findIndex(n => n.id === noteId);
+      if (ownerNoteIdx !== -1 && ownerNotes[ownerNoteIdx].shared) {
+        ownerNotes[ownerNoteIdx].shared = ownerNotes[ownerNoteIdx].shared.filter(s => s.email !== userEmail);
+        localStorage.setItem(ownerKey, JSON.stringify(ownerNotes));
+      }
+    }
+
+    notes = JSON.parse(localStorage.getItem(notesKey)) || [];
     renderNotes();
     return;
   }
 
   // Nếu là chủ sở hữu
-  const note = notes[index];
+  const idx = notes.findIndex(n => n.id === noteId);
+  if (idx === -1) return;
+  const note = notes[idx];
   if (note.shared && note.shared.length > 0) {
     note.shared.forEach(item => {
       const receiverKey = 'notes_' + item.email;
       let receiverNotes = JSON.parse(localStorage.getItem(receiverKey)) || [];
-      receiverNotes = receiverNotes.filter(n => n.id !== note.id);
+      receiverNotes = receiverNotes.filter(n => n.id !== noteId);
       localStorage.setItem(receiverKey, JSON.stringify(receiverNotes));
     });
   }
-  notes.splice(index, 1);
+  notes.splice(idx, 1);
   saveNotes();
   renderNotes();
 }
@@ -814,7 +828,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
       card.style.borderRadius = '12px';
       card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.10)';
       card.style.padding = '18px 18px 12px 18px';
-      card.style.transition = 'background 0.2s';
+      card.style.transition = 'box-shadow 0.22s cubic-bezier(.4,0,.2,1), transform 0.2s cubic-bezier(.4,0,.2,1)';
 
       
 
@@ -894,9 +908,6 @@ if (!isset($_SESSION['user']['is_verified'])) {
     titleInput.placeholder = 'Tiêu đề...';
     titleInput.value = note.title;
     titleInput.readOnly = !canEdit;
-
-    
-
 
   // Label badges
   const labelList = document.createElement('div');
@@ -1210,7 +1221,7 @@ noteToolbar.appendChild(fontSizeBtn);
       return;
     }
     if (confirm('Bạn có chắc chắn muốn xóa ghi chú này không?')) {
-      deleteNote(index, isSharedNote);
+      deleteNote(note.id, isSharedNote);
     }
     menuDropdown.style.display = 'none';
   };
@@ -1352,16 +1363,16 @@ noteToolbar.appendChild(fontSizeBtn);
 
   // Render: pinned trước, others sau, locked cuối cùng
   [...pinned, ...others, ...locked].forEach(note => {
-    let index, isSharedNote;
-    if (notes.some(n => n.id === note.id)) {
-      index = notes.findIndex(n => n.id === note.id);
-      isSharedNote = false;
-    } else {
-      index = sharedNotes.findIndex(n => n.id === note.id);
-      isSharedNote = true;
-    }
-    const noteEl = createNoteElement(note, index, isSharedNote);
-    noteContainer.appendChild(noteEl);
+  let index, isSharedNote;
+  if (notes.some(n => n.id === note.id)) {
+    index = notes.findIndex(n => n.id === note.id);
+    isSharedNote = false;
+  } else {
+    index = sharedNotes.findIndex(n => n.id === note.id);
+    isSharedNote = true;
+  }
+  const noteEl = createNoteElement(note, index, isSharedNote); // <-- Sửa lại dòng này
+  noteContainer.appendChild(noteEl);
   });
 }
       function syncSharedNote(note) {
