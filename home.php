@@ -366,8 +366,8 @@ if (!isset($_SESSION['user']['is_verified'])) {
         .form-control, .form-select {
           padding: 8px;
           border-radius: 6px;
-          border: 1px solid #ccc;
-          font-size: 14px;
+          border: 0px solid #ccc;
+          font-size: 15px;
           background-color: var(--card-color);
           color: var(--text-color);
           transition: background-color 0.3s, border-color 0.3s;
@@ -655,8 +655,8 @@ if (!isset($_SESSION['user']['is_verified'])) {
       });
     }
     function deleteNote(noteId, isSharedNote) {
-  if (isSharedNote) {
-    // Lấy note từ sharedNotes để lấy id
+ if (isSharedNote) {
+    // Xóa khỏi localStorage của người nhận
     let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
     myNotes = myNotes.filter(n => n.id !== noteId);
     localStorage.setItem(notesKey, JSON.stringify(myNotes));
@@ -684,8 +684,51 @@ if (!isset($_SESSION['user']['is_verified'])) {
       }
     }
 
+    // Đọc lại sharedNotes để loại bỏ ghi chú vừa xóa
     notes = JSON.parse(localStorage.getItem(notesKey)) || [];
-    renderNotes();
+    let sharedNotes = getAllSharedNotes().filter(n => {
+      // Đảm bảo chỉ lấy ghi chú còn trong shared của chủ sở hữu
+      return (n.shared || []).some(s => s.email === userEmail);
+    });
+    // Render lại chỉ với notes và sharedNotes đã loại bỏ ghi chú vừa xóa
+    noteContainer.innerHTML = '';
+    const allNotesMap = {};
+    notes.forEach(n => allNotesMap[n.id] = n);
+    sharedNotes.forEach(n => {
+      if (!allNotesMap[n.id]) allNotesMap[n.id] = n;
+    });
+    let allNotes = Object.values(allNotesMap);
+
+    // Lọc và render như trong renderNotes
+    const filtered = allNotes.filter(n => {
+      const isOwner = n.owner === userEmail;
+      const isShared = (n.shared || []).some(s => s.email === userEmail);
+      if (!isOwner && !isShared) return false;
+      const matchesTag = currentTag ? (n.tags || []).includes(currentTag) : true;
+      const matchesSearch = searchQuery ? (n.title.toLowerCase().includes(searchQuery) || n.content.toLowerCase().includes(searchQuery)) : true;
+      return matchesTag && matchesSearch;
+    });
+
+    // Chia thành 3 nhóm: pinned, others, locked (locked luôn ở cuối)
+    const locked = filtered.filter(n => n.locked && !n._unlocked)
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    const pinned = filtered.filter(n => n.pinned && !(n.locked && !n._unlocked))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    const others = filtered.filter(n => !n.pinned && !(n.locked && !n._unlocked))
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+
+    [...pinned, ...others, ...locked].forEach(note => {
+      let index, isSharedNote;
+      if (notes.some(n => n.id === note.id)) {
+        index = notes.findIndex(n => n.id === note.id);
+        isSharedNote = false;
+      } else {
+        index = sharedNotes.findIndex(n => n.id === note.id);
+        isSharedNote = true;
+      }
+      const noteEl = createNoteElement(note, index, isSharedNote);
+      noteContainer.appendChild(noteEl);
+    });
     return;
   }
 
@@ -702,6 +745,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
     });
   }
   notes.splice(idx, 1);
+  
   saveNotes();
   renderNotes();
 }
@@ -951,7 +995,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
 
   // Content input
   const contentInput = document.createElement('textarea');
-  contentInput.className = 'form-control mb-2';
+  contentInput.className = 'form-control  mb-2';
   contentInput.placeholder = 'Nội dung ghi chú...';
   contentInput.rows = 4;
   contentInput.value = note.content;
@@ -1507,8 +1551,9 @@ document.addEventListener('click', function hideFontPopup(e) {
     });
   }
 
-      card.appendChild(menuBtn);
-      card.appendChild(menuDropdown);
+      
+  noteToolbar.appendChild(menuBtn);
+      noteToolbar.appendChild(menuDropdown);
       card.appendChild(titleInput);
       card.appendChild(labelList);
       card.appendChild(contentInput);
@@ -1539,11 +1584,14 @@ document.addEventListener('click', function hideFontPopup(e) {
 
   // Lọc theo tag, search, quyền sở hữu hoặc được chia sẻ
   const filtered = allNotes.filter(n => {
-    const isOwner = n.owner === userEmail;
-    const isShared = (n.shared || []).some(s => s.email === userEmail);
-    const matchesTag = currentTag ? (n.tags || []).includes(currentTag) : true;
-    const matchesSearch = searchQuery ? (n.title.toLowerCase().includes(searchQuery) || n.content.toLowerCase().includes(searchQuery)) : true;
-    return (isOwner || isShared) && matchesTag && matchesSearch;
+  const isOwner = n.owner === userEmail;
+  // Chỉ hiển thị nếu là chủ sở hữu, hoặc còn trong shared với email người nhận
+  const isShared = (n.shared || []).some(s => s.email === userEmail);
+  // Nếu là người nhận, chỉ hiển thị nếu còn trong shared
+  if (!isOwner && !isShared) return false;
+  const matchesTag = currentTag ? (n.tags || []).includes(currentTag) : true;
+  const matchesSearch = searchQuery ? (n.title.toLowerCase().includes(searchQuery) || n.content.toLowerCase().includes(searchQuery)) : true;
+  return matchesTag && matchesSearch;
   });
 
   // Chia thành 3 nhóm: pinned, others, locked (locked luôn ở cuối)
@@ -1895,7 +1943,7 @@ listBtn.addEventListener('click', () => {
 <footer class="footer mt-5 py-3 bg-light border-top shadow-sm">
   <div class="container text-center">
     <div class="mb-2">
-      <a href="https://github.com/" target="_blank" class="text-decoration-none text-primary fw-bold">
+      <a href="https://github.com/Devpool314/Web-Final" target="_blank" class="text-decoration-none text-primary fw-bold">
         <i class="fab fa-github me-1"></i>Noti
       </a>
       <span class="mx-2 text-muted">|</span>
