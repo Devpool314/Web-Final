@@ -491,6 +491,32 @@ if (!isset($_SESSION['user']['is_verified'])) {
       #sidebar.collapsed {
         left: -300px;
       }
+
+      .note-card {
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.10) !important;
+  padding: 18px 18px 12px 18px !important;
+  min-height: 180px;
+  margin-bottom: 16px;
+  transition: background 0.2s;
+}
+.note-card input, .note-card textarea {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  resize: none;
+}
+.note-card input:focus, .note-card textarea:focus {
+  outline: none !important;
+}
+.note-card .btn-light {
+  background: #f1f3f4 !important;
+  border: none !important;
+  color: #333 !important;
+  box-shadow: none !important;
+}
+
+
     }
 
 </style>
@@ -745,7 +771,6 @@ if (!isset($_SESSION['user']['is_verified'])) {
     };
 
     function createNoteElement(note, index, isSharedNote) {
-
       const isOwner = note.owner === userEmail;
       const sharedItem = (note.shared || []).find(s => s.email === userEmail);
       const canEdit = isOwner || (sharedItem && sharedItem.permission === 'edit');
@@ -757,8 +782,14 @@ if (!isset($_SESSION['user']['is_verified'])) {
       const card = document.createElement('div');
       card.className = 'note-card';
       card.style.position = 'relative';
+      card.style.background = note.color || '#fff';
+      card.style.minHeight = '180px';
+      card.style.borderRadius = '12px';
+      card.style.boxShadow = '0 2px 8px rgba(0,0,0,0.10)';
+      card.style.padding = '18px 18px 12px 18px';
+      card.style.transition = 'background 0.2s';
 
-      // Add prominent pin icon if pinned
+      // Pin icon
       if (note.pinned) {
         const pinIcon = document.createElement('span');
         pinIcon.innerHTML = '<i class="fas fa-thumbtack"></i>';
@@ -772,7 +803,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
         card.appendChild(pinIcon);
       }
 
-      // If locked and not unlocked, show lock overlay and return
+      // Nếu bị khóa thì xử lý như cũ...
       if (note.locked && !note._unlocked) {
       const lockOverlay = document.createElement('div');
       lockOverlay.style.position = 'absolute';
@@ -828,92 +859,100 @@ if (!isset($_SESSION['user']['is_verified'])) {
         return div;
       }
 
-    // Title input
-    const titleInput = document.createElement('input');
-    titleInput.className = 'form-control mb-2 fw-bold';
-    titleInput.placeholder = 'Tiêu đề...';
-    titleInput.value = note.title;
-    titleInput.readOnly = !canEdit;
+      // Title input
+      const titleInput = document.createElement('input');
+      titleInput.className = 'form-control mb-2 fw-bold';
+      titleInput.placeholder = 'Tiêu đề...';
+      titleInput.value = note.title;
+      titleInput.readOnly = !canEdit;
+      titleInput.style.backgroundColor = canEdit ? "" : "#f5f5f5";
 
-    
+      // Label badges
+      const labelList = document.createElement('div');
+      (note.tags || []).forEach(tag => {
+        const span = document.createElement('span');
+        span.className = 'badge bg-primary me-1';
+        span.textContent = tag;
+        labelList.appendChild(span);
+      });
 
+      // Content input
+      const contentInput = document.createElement('textarea');
+      contentInput.className = 'form-control mb-2';
+      contentInput.placeholder = 'Nội dung ghi chú...';
+      contentInput.rows = 4;
+      contentInput.value = note.content;
+      contentInput.readOnly = !canEdit;
+      contentInput.style.backgroundColor = canEdit ? "" : "#f5f5f5";
+      contentInput.style.fontSize = note.fontSize || '16px';
 
-  // Label badges
-  const labelList = document.createElement('div');
-  (note.tags || []).forEach(tag => {
-    const span = document.createElement('span');
-    span.className = 'badge bg-primary me-1';
-    span.textContent = tag;
-    labelList.appendChild(span);
-  });
+      // Toolbar dưới vùng nhập nội dung
+      const noteToolbar = document.createElement('div');
+      noteToolbar.className = 'note-toolbar';
 
-  // Content input
-  const contentInput = document.createElement('textarea');
-  contentInput.className = 'form-control mb-2';
-  contentInput.placeholder = 'Nội dung ghi chú...';
-  contentInput.rows = 4;
-  contentInput.value = note.content;
-
-  titleInput.readOnly = !canEdit;
-  contentInput.readOnly = !canEdit;
-  titleInput.style.backgroundColor = canEdit ? "" : "#f5f5f5";
-  contentInput.style.backgroundColor = canEdit ? "" : "#f5f5f5";
-  
-  //Update note
-  // Sự kiện cho tiêu đề
-    function saveTitle() {
-      if (!canEdit) return;
-      if (notes[index].title !== titleInput.value) {
-        notes[index].title = titleInput.value;
-        notes[index].updatedAt = Date.now();
-        saveNotes();
-        // Nếu là người nhận và có quyền chỉnh sửa, đồng bộ về cho chủ sở hữu
-        if (!isOwner && sharedItem && sharedItem.permission === 'edit') {
-          syncBackToOwner(notes[index]);
+      // Nút đổi cỡ chữ
+      const fontSizeBtn = document.createElement('button');
+      fontSizeBtn.type = 'button';
+      fontSizeBtn.className = 'note-toolbar-btn';
+      fontSizeBtn.title = 'Đổi cỡ chữ';
+      fontSizeBtn.innerHTML = '<i class="fas fa-text-height"></i>';
+      fontSizeBtn.onclick = (e) => {
+        e.stopPropagation();
+        const size = prompt('Nhập cỡ chữ (vd: 14px, 18px, 24px):', note.fontSize || '16px');
+        if (size) {
+          note.fontSize = size;
+          if (!isSharedNote) {
+            notes[index].fontSize = size;
+            saveNotes();
+          } else {
+            let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
+            const myIdx = myNotes.findIndex(n => n.id === note.id);
+            if (myIdx !== -1) {
+              myNotes[myIdx].fontSize = size;
+              localStorage.setItem(notesKey, JSON.stringify(myNotes));
+            }
+          }
+          renderNotes();
         }
-        renderNotes();
-      }
-    }
-    titleInput.addEventListener('blur', saveTitle);
-    titleInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        titleInput.blur();
-      }
-    });
+      };
+      noteToolbar.appendChild(fontSizeBtn);
 
-    const updatedAtDiv = document.createElement('div');
-    updatedAtDiv.className = 'text-muted mt-1';
-    updatedAtDiv.style.fontSize = '0.8em';
-    updatedAtDiv.style.textAlign = 'left';
-    const d = new Date(note.updatedAt);
-    updatedAtDiv.textContent = 'Cập nhật: ' +
-      d.toLocaleDateString('vi-VN') + ' ' +
-      d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
-    card.appendChild(updatedAtDiv);
-
-    // Sự kiện cho nội dung
-    function saveContent() {
-      if (!canEdit) return;
-      if (notes[index].content !== contentInput.value) {
-        notes[index].content = contentInput.value;
-        notes[index].updatedAt = Date.now();
-        saveNotes();
-        if (!isOwner && sharedItem && sharedItem.permission === 'edit') {
-          syncBackToOwner(notes[index]);
+      // Nút đổi màu
+      const colorBtn = document.createElement('button');
+      colorBtn.type = 'button';
+      colorBtn.className = 'note-toolbar-btn';
+      colorBtn.title = 'Đổi màu ghi chú';
+      colorBtn.innerHTML = '<i class="fas fa-palette"></i>';
+      colorBtn.onclick = (e) => {
+        e.stopPropagation();
+        const color = prompt('Nhập mã màu hoặc chọn màu:', note.color || '#fff');
+        if (color) {
+          note.color = color;
+          if (!isSharedNote) {
+            notes[index].color = color;
+            saveNotes();
+          } else {
+            let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
+            const myIdx = myNotes.findIndex(n => n.id === note.id);
+            if (myIdx !== -1) {
+              myNotes[myIdx].color = color;
+              localStorage.setItem(notesKey, JSON.stringify(myNotes));
+            }
+          }
+          renderNotes();
         }
-        renderNotes();
-      }
-    }
-    contentInput.addEventListener('blur', saveContent);
-    contentInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        contentInput.blur();
-      }
-    });
+      };
+      noteToolbar.appendChild(colorBtn);
 
+      // Thời gian cập nhật
+      const updatedAtDiv = document.createElement('div');
+      updatedAtDiv.className = 'text-muted mt-1';
+      updatedAtDiv.style.fontSize = '0.8em';
+      updatedAtDiv.style.textAlign = 'left';
+      const d = new Date(note.updatedAt);
+      updatedAtDiv.textContent = 'Cập nhật: ' +
+        d.toLocaleDateString('vi-VN') + ' ' +
+        d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
   // 3-dots menu button
   const menuBtn = document.createElement('button');
@@ -1191,6 +1230,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
       card.appendChild(titleInput);
       card.appendChild(labelList);
       card.appendChild(contentInput);
+      card.appendChild(noteToolbar);
       card.appendChild(imagePreview);
       card.appendChild(updatedAtDiv);
       card.appendChild(shareInfoDiv);
@@ -1361,7 +1401,9 @@ if (!isset($_SESSION['user']['is_verified'])) {
           password: '',
           createdAt: Date.now(),
           updatedAt: Date.now(),
-          shared: []
+          shared: [],
+          color: '#fff',
+          fontSize: '16px'
         });
         saveNotes();
         renderNotes();
