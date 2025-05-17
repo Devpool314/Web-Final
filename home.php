@@ -515,9 +515,33 @@ if (!isset($_SESSION['user']['is_verified'])) {
   color: #333 !important;
   box-shadow: none !important;
 }
-
-
     }
+
+    .note-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  margin-top: 2px;
+}
+.note-toolbar-btn {
+  background: #f8f9fa;
+  border: none;
+  color: #222;
+  font-size: 1.3em;
+  border-radius: 50%;
+  width: 42px;
+  height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(60,64,67,.08);
+}
+.note-toolbar-btn:hover {
+  background: #ececec;
+}
 
 </style>
 </head>
@@ -771,6 +795,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
     };
 
     function createNoteElement(note, index, isSharedNote) {
+
       const isOwner = note.owner === userEmail;
       const sharedItem = (note.shared || []).find(s => s.email === userEmail);
       const canEdit = isOwner || (sharedItem && sharedItem.permission === 'edit');
@@ -782,6 +807,8 @@ if (!isset($_SESSION['user']['is_verified'])) {
       const card = document.createElement('div');
       card.className = 'note-card';
       card.style.position = 'relative';
+
+      // Thêm màu nền và font chữ
       card.style.background = note.color || '#fff';
       card.style.minHeight = '180px';
       card.style.borderRadius = '12px';
@@ -789,7 +816,9 @@ if (!isset($_SESSION['user']['is_verified'])) {
       card.style.padding = '18px 18px 12px 18px';
       card.style.transition = 'background 0.2s';
 
-      // Pin icon
+      
+
+      // Add prominent pin icon if pinned
       if (note.pinned) {
         const pinIcon = document.createElement('span');
         pinIcon.innerHTML = '<i class="fas fa-thumbtack"></i>';
@@ -803,7 +832,7 @@ if (!isset($_SESSION['user']['is_verified'])) {
         card.appendChild(pinIcon);
       }
 
-      // Nếu bị khóa thì xử lý như cũ...
+      // If locked and not unlocked, show lock overlay and return
       if (note.locked && !note._unlocked) {
       const lockOverlay = document.createElement('div');
       lockOverlay.style.position = 'absolute';
@@ -859,100 +888,153 @@ if (!isset($_SESSION['user']['is_verified'])) {
         return div;
       }
 
-      // Title input
-      const titleInput = document.createElement('input');
-      titleInput.className = 'form-control mb-2 fw-bold';
-      titleInput.placeholder = 'Tiêu đề...';
-      titleInput.value = note.title;
-      titleInput.readOnly = !canEdit;
-      titleInput.style.backgroundColor = canEdit ? "" : "#f5f5f5";
+    // Title input
+    const titleInput = document.createElement('input');
+    titleInput.className = 'form-control mb-2 fw-bold';
+    titleInput.placeholder = 'Tiêu đề...';
+    titleInput.value = note.title;
+    titleInput.readOnly = !canEdit;
 
-      // Label badges
-      const labelList = document.createElement('div');
-      (note.tags || []).forEach(tag => {
-        const span = document.createElement('span');
-        span.className = 'badge bg-primary me-1';
-        span.textContent = tag;
-        labelList.appendChild(span);
-      });
+    
 
-      // Content input
-      const contentInput = document.createElement('textarea');
-      contentInput.className = 'form-control mb-2';
-      contentInput.placeholder = 'Nội dung ghi chú...';
-      contentInput.rows = 4;
-      contentInput.value = note.content;
-      contentInput.readOnly = !canEdit;
-      contentInput.style.backgroundColor = canEdit ? "" : "#f5f5f5";
-      contentInput.style.fontSize = note.fontSize || '16px';
 
-      // Toolbar dưới vùng nhập nội dung
-      const noteToolbar = document.createElement('div');
-      noteToolbar.className = 'note-toolbar';
+  // Label badges
+  const labelList = document.createElement('div');
+  (note.tags || []).forEach(tag => {
+    const span = document.createElement('span');
+    span.className = 'badge bg-primary me-1';
+    span.textContent = tag;
+    labelList.appendChild(span);
+  });
 
-      // Nút đổi cỡ chữ
-      const fontSizeBtn = document.createElement('button');
-      fontSizeBtn.type = 'button';
-      fontSizeBtn.className = 'note-toolbar-btn';
-      fontSizeBtn.title = 'Đổi cỡ chữ';
-      fontSizeBtn.innerHTML = '<i class="fas fa-text-height"></i>';
-      fontSizeBtn.onclick = (e) => {
-        e.stopPropagation();
-        const size = prompt('Nhập cỡ chữ (vd: 14px, 18px, 24px):', note.fontSize || '16px');
-        if (size) {
-          note.fontSize = size;
-          if (!isSharedNote) {
-            notes[index].fontSize = size;
-            saveNotes();
-          } else {
-            let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
-            const myIdx = myNotes.findIndex(n => n.id === note.id);
-            if (myIdx !== -1) {
-              myNotes[myIdx].fontSize = size;
-              localStorage.setItem(notesKey, JSON.stringify(myNotes));
-            }
-          }
-          renderNotes();
+  // Content input
+  const contentInput = document.createElement('textarea');
+  contentInput.className = 'form-control mb-2';
+  contentInput.placeholder = 'Nội dung ghi chú...';
+  contentInput.rows = 4;
+  contentInput.value = note.content;
+
+  titleInput.readOnly = !canEdit;
+  contentInput.readOnly = !canEdit;
+  titleInput.style.backgroundColor = canEdit ? "" : "#f5f5f5";
+  contentInput.style.backgroundColor = canEdit ? "" : "#f5f5f5";
+
+  // === Tạo toolbar chứa 2 nút dưới vùng nhập nội dung ===
+const noteToolbar = document.createElement('div');
+noteToolbar.className = 'note-toolbar mt-2 mb-2 d-flex align-items-center gap-2';
+
+
+// Nút đổi màu
+const colorBtn = document.createElement('button');
+colorBtn.type = 'button';
+colorBtn.className = 'note-toolbar-btn';
+colorBtn.title = 'Đổi màu ghi chú';
+colorBtn.innerHTML = '<i class="fas fa-palette"></i>';
+colorBtn.onclick = (e) => {
+  e.stopPropagation();
+  const color = prompt('Nhập mã màu hoặc chọn màu:', note.color || '#fff');
+  if (color) {
+    note.color = color;
+    if (!isSharedNote) {
+      notes[index].color = color;
+      saveNotes();
+    } else {
+      let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
+      const myIdx = myNotes.findIndex(n => n.id === note.id);
+      if (myIdx !== -1) {
+        myNotes[myIdx].color = color;
+        localStorage.setItem(notesKey, JSON.stringify(myNotes));
+      }
+    }
+    renderNotes();
+  }
+};
+noteToolbar.appendChild(colorBtn);
+
+// Nút đổi cỡ chữ
+const fontSizeBtn = document.createElement('button');
+fontSizeBtn.type = 'button';
+fontSizeBtn.className = 'note-toolbar-btn';
+fontSizeBtn.title = 'Đổi cỡ chữ';
+fontSizeBtn.innerHTML = '<i class="fas fa-text-height"></i>';
+fontSizeBtn.onclick = (e) => {
+  e.stopPropagation();
+  const size = prompt('Nhập cỡ chữ (vd: 14px, 18px, 24px):', note.fontSize || '16px');
+  if (size) {
+    note.fontSize = size;
+    if (!isSharedNote) {
+      notes[index].fontSize = size;
+      saveNotes();
+    } else {
+      let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
+      const myIdx = myNotes.findIndex(n => n.id === note.id);
+      if (myIdx !== -1) {
+        myNotes[myIdx].fontSize = size;
+        localStorage.setItem(notesKey, JSON.stringify(myNotes));
+      }
+    }
+    renderNotes();
+  }
+};
+noteToolbar.appendChild(fontSizeBtn);
+  
+  
+  
+  //Update note
+  // Sự kiện cho tiêu đề
+    function saveTitle() {
+      if (!canEdit) return;
+      if (notes[index].title !== titleInput.value) {
+        notes[index].title = titleInput.value;
+        notes[index].updatedAt = Date.now();
+        saveNotes();
+        // Nếu là người nhận và có quyền chỉnh sửa, đồng bộ về cho chủ sở hữu
+        if (!isOwner && sharedItem && sharedItem.permission === 'edit') {
+          syncBackToOwner(notes[index]);
         }
-      };
-      noteToolbar.appendChild(fontSizeBtn);
+        renderNotes();
+      }
+    }
+    titleInput.addEventListener('blur', saveTitle);
+    titleInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        titleInput.blur();
+      }
+    });
 
-      // Nút đổi màu
-      const colorBtn = document.createElement('button');
-      colorBtn.type = 'button';
-      colorBtn.className = 'note-toolbar-btn';
-      colorBtn.title = 'Đổi màu ghi chú';
-      colorBtn.innerHTML = '<i class="fas fa-palette"></i>';
-      colorBtn.onclick = (e) => {
-        e.stopPropagation();
-        const color = prompt('Nhập mã màu hoặc chọn màu:', note.color || '#fff');
-        if (color) {
-          note.color = color;
-          if (!isSharedNote) {
-            notes[index].color = color;
-            saveNotes();
-          } else {
-            let myNotes = JSON.parse(localStorage.getItem(notesKey)) || [];
-            const myIdx = myNotes.findIndex(n => n.id === note.id);
-            if (myIdx !== -1) {
-              myNotes[myIdx].color = color;
-              localStorage.setItem(notesKey, JSON.stringify(myNotes));
-            }
-          }
-          renderNotes();
+    const updatedAtDiv = document.createElement('div');
+    updatedAtDiv.className = 'text-muted mt-1';
+    updatedAtDiv.style.fontSize = '0.8em';
+    updatedAtDiv.style.textAlign = 'left';
+    const d = new Date(note.updatedAt);
+    updatedAtDiv.textContent = 'Cập nhật: ' +
+      d.toLocaleDateString('vi-VN') + ' ' +
+      d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
+    card.appendChild(updatedAtDiv);
+
+    // Sự kiện cho nội dung
+    function saveContent() {
+      if (!canEdit) return;
+      if (notes[index].content !== contentInput.value) {
+        notes[index].content = contentInput.value;
+        notes[index].updatedAt = Date.now();
+        saveNotes();
+        if (!isOwner && sharedItem && sharedItem.permission === 'edit') {
+          syncBackToOwner(notes[index]);
         }
-      };
-      noteToolbar.appendChild(colorBtn);
+        renderNotes();
+      }
+    }
+    contentInput.addEventListener('blur', saveContent);
+    contentInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        contentInput.blur();
+      }
+    });
 
-      // Thời gian cập nhật
-      const updatedAtDiv = document.createElement('div');
-      updatedAtDiv.className = 'text-muted mt-1';
-      updatedAtDiv.style.fontSize = '0.8em';
-      updatedAtDiv.style.textAlign = 'left';
-      const d = new Date(note.updatedAt);
-      updatedAtDiv.textContent = 'Cập nhật: ' +
-        d.toLocaleDateString('vi-VN') + ' ' +
-        d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
   // 3-dots menu button
   const menuBtn = document.createElement('button');
